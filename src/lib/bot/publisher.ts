@@ -9,6 +9,16 @@ export interface PublishResult {
   message: string
 }
 
+function failure(pkg: GeneratedSeriesPackage, reason: string): PublishResult {
+  return {
+    success: false,
+    seriesId: '',
+    slug: pkg.slug,
+    episodesCreated: 0,
+    message: `⚠️ Publish failed for "${pkg.title}": ${reason}`,
+  }
+}
+
 export async function publishSeriesToPlatform(
   pkg: GeneratedSeriesPackage
 ): Promise<PublishResult> {
@@ -37,20 +47,35 @@ export async function publishSeriesToPlatform(
       .select('id')
       .single()
 
-    if (seriesError) {
-      console.warn('[Publisher] Supabase series insert error (using fallback):', seriesError.message)
+    if (seriesError || !seriesData?.id) {
+      console.error('[Publisher] Series upsert error:', seriesError?.message)
+      return failure(pkg, seriesError?.message || 'series row was not returned')
+    }
+
+    const seriesId = seriesData.id
+
+    // 2. Re-publishing an existing slug updates the series only; inserting
+    //    episodes again would duplicate them.
+    const { count: existingEpisodes, error: countError } = await supabase
+      .from('episodes')
+      .select('id', { count: 'exact', head: true })
+      .eq('series_id', seriesId)
+
+    if (countError) {
+      return failure(pkg, countError.message)
+    }
+
+    if (existingEpisodes && existingEpisodes > 0) {
       return {
         success: true,
-        seriesId: pkg.slug,
+        seriesId,
         slug: pkg.slug,
-        episodesCreated: pkg.episodes.length,
-        message: `Generated series "${pkg.title}" ready! Added to platform catalog.`,
+        episodesCreated: 0,
+        message: `Updated "${pkg.title}" (it already had ${existingEpisodes} episodes, left unchanged).`,
       }
     }
 
-    const seriesId = seriesData?.id || pkg.slug
-
-    // 2. Insert all 15 episodes with is_free flags
+    // 3. Insert all episodes with is_free flags
     const episodesToInsert = pkg.episodes.map((ep) => ({
       series_id: seriesId,
       title: ep.title,
@@ -66,24 +91,19 @@ export async function publishSeriesToPlatform(
       .insert(episodesToInsert)
 
     if (epError) {
-      console.warn('[Publisher] Episode batch insert warning:', epError.message)
+      console.error('[Publisher] Episode batch insert error:', epError.message)
+      return failure(pkg, `series saved, but episodes failed: ${epError.message}`)
     }
 
     return {
       success: true,
       seriesId,
       slug: pkg.slug,
-      episodesCreated: pkg.episodes.length,
-      message: `🎉 Published "${pkg.title}" with 15 episodes directly to your platform!`,
+      episodesCreated: episodesToInsert.length,
+      message: `🎉 Published "${pkg.title}" with ${episodesToInsert.length} episodes to your platform!`,
     }
   } catch (err) {
-    console.warn('[Publisher] DB connection bypassed, returning success object:', err)
-    return {
-      success: true,
-      seriesId: pkg.slug,
-      slug: pkg.slug,
-      episodesCreated: pkg.episodes.length,
-      message: `Generated "${pkg.title}" with 15 episodes. Ready in library!`,
-    }
+    console.error('[Publisher] Database error:', err)
+    return failure(pkg, err instanceof Error ? err.message : 'database unreachable')
   }
 }

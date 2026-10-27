@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { cookies } from 'next/headers'
 import {
   LayoutDashboard,
   Film,
@@ -10,16 +9,8 @@ import {
   Bot,
   LogOut,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { getAdminIdentity } from '@/lib/admin-auth'
 import AdminLoginPage from './login/page'
-
-const ADMIN_EMAILS = [
-  'sword.maataoui@gmail.com',
-  process.env.ADMIN_EMAIL || '',
-  process.env.NEXT_PUBLIC_ADMIN_EMAIL || '',
-]
-  .map((e) => e.toLowerCase().trim())
-  .filter(Boolean)
 
 const adminNav = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -30,33 +21,13 @@ const adminNav = [
 ]
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = await cookies()
-  const hasCookieSession =
-    cookieStore.get('admin_session')?.value === 'authenticated'
+  const identity = await getAdminIdentity()
 
-  // Check Supabase Auth user
-  let isEmailAdmin = false
-  let adminEmail = ''
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase().trim())) {
-      isEmailAdmin = true
-      adminEmail = user.email
-    }
-  } catch (e) {
-    // Offline / fallback
-  }
-
-  const isAuthorized = isEmailAdmin || hasCookieSession
-
-  // If not authorized as sword.maataoui@gmail.com or passcode, show login screen
-  if (!isAuthorized) {
+  // If not authorized as an admin email or via passcode, show login screen
+  if (!identity) {
     return <AdminLoginPage />
   }
+  const adminEmail = identity === 'passcode' ? '' : identity
 
   return (
     <div className="flex min-h-screen bg-gray-950 text-white selection:bg-yellow-400 selection:text-black">

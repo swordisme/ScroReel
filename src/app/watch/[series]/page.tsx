@@ -73,6 +73,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
 
   // Fetch authenticated user profile from Supabase
   let userProfile: UserProfile | null = null
+  let unlockedEpisodeIds: string[] = []
   try {
     const supabase = await createClient()
     const {
@@ -85,6 +86,13 @@ export default async function WatchPage({ params }: WatchPageProps) {
         .eq('id', user.id)
         .maybeSingle()
       userProfile = profile ?? null
+
+      const { data: unlocks } = await supabase
+        .from('unlocked_episodes')
+        .select('episode_key')
+        .eq('user_id', user.id)
+        .in('episode_key', episodes.map((e) => e.id))
+      unlockedEpisodeIds = (unlocks ?? []).map((u) => u.episode_key as string)
     }
   } catch {
     // No session — continue as guest
@@ -92,7 +100,12 @@ export default async function WatchPage({ params }: WatchPageProps) {
 
   return (
     <div className="bg-black min-h-screen">
-      <EpisodePlayer series={series} episodes={episodes} user={userProfile} />
+      <EpisodePlayer
+        series={series}
+        episodes={episodes}
+        user={userProfile}
+        initialUnlockedIds={unlockedEpisodeIds}
+      />
     </div>
   )
 }

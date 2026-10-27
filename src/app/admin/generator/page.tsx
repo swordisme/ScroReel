@@ -40,7 +40,9 @@ export default function AIGeneratorStudioPage() {
       })
 
       const data = await res.json()
-      if (data?.ok) {
+      if (!res.ok) {
+        setPublishSuccess(`⚠️ ${data?.error || 'Generation failed'}`)
+      } else if (data?.ok) {
         setGeneratedData(data)
         if (data.published?.message) {
           setPublishSuccess(data.published.message)

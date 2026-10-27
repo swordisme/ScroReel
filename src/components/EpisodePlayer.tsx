@@ -15,13 +15,14 @@ interface EpisodePlayerProps {
   series: Series
   episodes: Episode[]
   user?: UserProfile | null
+  initialUnlockedIds?: string[]
 }
 
-export default function EpisodePlayer({ series, episodes, user }: EpisodePlayerProps) {
+export default function EpisodePlayer({ series, episodes, user, initialUnlockedIds = [] }: EpisodePlayerProps) {
   const router = useRouter()
   const [paywallEpisode, setPaywallEpisode] = useState<Episode | null>(null)
   const [muted, setMuted] = useState(true)
-  const [unlockedEpisodes, setUnlockedEpisodes] = useState<Set<string>>(new Set())
+  const [unlockedEpisodes, setUnlockedEpisodes] = useState<Set<string>>(() => new Set(initialUnlockedIds))
   const [authUser, setAuthUser] = useState<User | null>(null)
   const [liveCoinBalance, setLiveCoinBalance] = useState<number>(user?.coin_balance ?? 0)
   const [isSubscribed, setIsSubscribed] = useState<boolean>(user?.subscription_active ?? false)
@@ -201,8 +202,6 @@ export default function EpisodePlayer({ series, episodes, user }: EpisodePlayerP
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           episodeId: paywallEpisode.id,
-          seriesId: series.id || series.slug || '',
-          coinCost: 10,
         }),
       })
       if (!res.ok) {

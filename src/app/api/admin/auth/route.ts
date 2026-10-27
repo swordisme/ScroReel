@@ -1,17 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { ADMIN_COOKIE, adminSessionToken, isValidAdminPassword } from '@/lib/admin-auth'
 
 export const dynamic = 'force-dynamic'
-
-const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'snackdrama2026'
 
 export async function POST(req: NextRequest) {
   try {
     const { password } = await req.json()
+    const token = adminSessionToken()
 
-    if (password === DEFAULT_ADMIN_PASSWORD) {
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Passcode login is disabled (ADMIN_PASSWORD not set). Sign in with your admin email.' },
+        { status: 403 }
+      )
+    }
+
+    if (isValidAdminPassword(password)) {
       const cookieStore = await cookies()
-      cookieStore.set('admin_session', 'authenticated', {
+      cookieStore.set(ADMIN_COOKIE, token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
@@ -30,6 +37,6 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE() {
   const cookieStore = await cookies()
-  cookieStore.delete('admin_session')
+  cookieStore.delete(ADMIN_COOKIE)
   return NextResponse.json({ ok: true })
 }

@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { analyzeMarketTrend } from '@/lib/bot/trend-analyzer'
 import { generateSeriesFromTrope } from '@/lib/bot/script-engine'
 import { publishSeriesToPlatform } from '@/lib/bot/publisher'
+import { getAdminIdentity } from '@/lib/admin-auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  if (!(await getAdminIdentity())) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = await req.json().catch(() => ({}))
     const { category, customTitle, publishDirectly = false } = body
