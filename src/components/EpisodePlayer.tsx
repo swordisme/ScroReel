@@ -2,7 +2,8 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, Play, Volume2, VolumeX } from 'lucide-react'
+import Link from 'next/link'
+import { Lock, Volume2, VolumeX, ArrowLeft, Crown, Play, Pause, Loader2 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import type { Episode, Series, UserProfile } from '@/types'
 import PaywallModal from './PaywallModal'
@@ -22,50 +23,89 @@ export default function EpisodePlayer({ series, episodes, user }: EpisodePlayerP
   const [muted, setMuted] = useState(true)
   const [unlockedEpisodes, setUnlockedEpisodes] = useState<Set<string>>(new Set())
   const [authUser, setAuthUser] = useState<User | null>(null)
-  // Live coin balance — initialised from server prop, updated after checkout
   const [liveCoinBalance, setLiveCoinBalance] = useState<number>(user?.coin_balance ?? 0)
+  const [isSubscribed, setIsSubscribed] = useState<boolean>(user?.subscription_active ?? false)
+  const [pausedMap, setPausedMap] = useState<Record<string, boolean>>({})
+  const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({})
+
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map())
   const { paddle, onCheckoutComplete } = usePaddle()
 
-  // Sync live auth session client-side — never rely solely on server prop
+  // Track analytics event helper
+  const trackEvent = useCallback(
+    async (eventType: string, episodeId?: string, metadata?: Record<string, unknown>) => {
+      try {
+        await fetch('/api/analytics/event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_type: eventType,
+            series_id: series.id,
+            episode_id: episodeId,
+            metadata,
+          }),
+        })
+      } catch (e) {
+        // fail-safe
+      }
+    },
+    [series.id]
+  )
+
+  // Sync live auth session client-side
   useEffect(() => {
-    const supabase = createClient()
+    try {
+      const supabase = createClient()
 
-    supabase.auth.getUser().then(({ data }) => {
-      setAuthUser(data.user)
-    })
+      supabase.auth.getUser().then(({ data }) => {
+        setAuthUser(data?.user ?? null)
+      }).catch(() => {})
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthUser(session?.user ?? null)
-    })
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        setAuthUser(session?.user ?? null)
+      })
 
-    return () => subscription.unsubscribe()
+      return () => subscription?.unsubscribe?.()
+    } catch {
+      // Guest mode fallback
+    }
   }, [])
 
-  // Subscribe to Paddle checkout.completed — re-fetch profile for live balance update
+  // Subscribe to Paddle checkout.completed
   useEffect(() => {
     const unsubscribe = onCheckoutComplete(async () => {
-      console.log('[EpisodePlayer] checkout.completed — refreshing coin balance')
-      // Give the webhook ~2 s to credit coins before re-fetching
       await new Promise((r) => setTimeout(r, 2000))
       const supabase = createClient()
-      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser()
       if (!currentUser) return
       const { data: profile } = await supabase
         .from('profiles')
-        .select('coin_balance')
+        .select('coin_balance, subscription_active')
         .eq('id', currentUser.id)
         .maybeSingle()
       if (profile) {
         setLiveCoinBalance(profile.coin_balance ?? 0)
-        console.log('[EpisodePlayer] coin balance refreshed:', profile.coin_balance)
+        setIsSubscribed(profile.subscription_active ?? false)
       }
     })
     return unsubscribe
   }, [onCheckoutComplete])
 
-  // IntersectionObserver: auto-play video in view
+  // Sync muted state to all video elements directly in DOM
+  useEffect(() => {
+    videoRefs.current.forEach((video) => {
+      if (video) {
+        video.muted = muted
+      }
+    })
+  }, [muted])
+
+  // Auto-play active video on intersection
   useEffect(() => {
     const observers: IntersectionObserver[] = []
 
@@ -78,72 +118,83 @@ export default function EpisodePlayer({ series, episodes, user }: EpisodePlayerP
                 if (vid !== id) {
                   v.pause()
                   v.currentTime = 0
+                  setPausedMap((prev) => ({ ...prev, [vid]: true }))
                 }
               })
-              if (video.src) {
-                video.play().catch(() => {})
-              }
+
+              video.muted = muted
+              video.play().then(() => {
+                setPausedMap((prev) => ({ ...prev, [id]: false }))
+              }).catch(() => {
+                setPausedMap((prev) => ({ ...prev, [id]: true }))
+              })
+
+              trackEvent('episode_view', id)
             }
           })
         },
-        { threshold: 0.7 }
+        { threshold: 0.6 }
       )
       observer.observe(video)
       observers.push(observer)
     })
 
-    return () => observers.forEach((obs) => obs.disconnect())
-  }, [episodes])
-
-  // Fetch live coin balance from Supabase whenever authUser is resolved/changed
-  useEffect(() => {
-    if (!authUser?.id) return
-
-    async function fetchBalance() {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('coin_balance')
-        .eq('id', authUser!.id)
-        .maybeSingle()
-
-      if (error) {
-        console.error('[EpisodePlayer] fetchBalance error:', error.message)
-        return
-      }
-
-      if (data && typeof data.coin_balance === 'number') {
-        setLiveCoinBalance(data.coin_balance)
-        console.log('[EpisodePlayer] fetched coin_balance from DB:', data.coin_balance)
-      }
+    // Auto-play first video on load
+    const firstEntry = Array.from(videoRefs.current.entries())[0]
+    if (firstEntry && firstEntry[1]) {
+      firstEntry[1].muted = muted
+      firstEntry[1].play().then(() => {
+        setPausedMap((prev) => ({ ...prev, [firstEntry[0]]: false }))
+      }).catch(() => {
+        setPausedMap((prev) => ({ ...prev, [firstEntry[0]]: true }))
+      })
     }
 
-    fetchBalance()
-  }, [authUser?.id])
+    return () => observers.forEach((obs) => obs.disconnect())
+  }, [episodes, trackEvent])
+
+  const toggleVideoPlayback = (id: string) => {
+    const video = videoRefs.current.get(id)
+    if (!video) return
+
+    video.muted = muted
+
+    if (video.paused) {
+      video.play().then(() => {
+        setPausedMap((prev) => ({ ...prev, [id]: false }))
+      }).catch((e) => {
+        console.warn('Play interrupted:', e)
+      })
+    } else {
+      video.pause()
+      setPausedMap((prev) => ({ ...prev, [id]: true }))
+    }
+  }
 
   const handleEpisodeClick = useCallback(
     (episode: Episode) => {
-      if (!episode.is_free && !unlockedEpisodes.has(episode.id)) {
+      if (!isSubscribed && !episode.is_free && !unlockedEpisodes.has(episode.id)) {
         setPaywallEpisode(episode)
+        trackEvent('paywall_hit', episode.id)
       }
     },
-    [unlockedEpisodes]
+    [isSubscribed, unlockedEpisodes, trackEvent]
   )
 
   const handleUnlockWithCoins = useCallback(async () => {
     if (!paywallEpisode) return
     if (!authUser) {
-      router.push('/login?returnTo=/watch/forbidden-lesson')
+      router.push(`/login?returnTo=/watch/${series.slug}`)
       return
     }
     if (liveCoinBalance < 10) return
 
-    // Optimistic UI update
     setUnlockedEpisodes((prev) => new Set([...prev, paywallEpisode.id]))
     setLiveCoinBalance((b) => b - 10)
     setPaywallEpisode(null)
 
-    // Persist to DB via the unlock API route
+    trackEvent('episode_unlock', paywallEpisode.id, { coin_cost: 10 })
+
     try {
       const res = await fetch('/api/episodes/unlock', {
         method: 'POST',
@@ -155,9 +206,6 @@ export default function EpisodePlayer({ series, episodes, user }: EpisodePlayerP
         }),
       })
       if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: 'Unknown error' }))
-        console.error('[EpisodePlayer] unlock API error:', error)
-        // Revert optimistic update on failure
         setUnlockedEpisodes((prev) => {
           const next = new Set(prev)
           next.delete(paywallEpisode.id)
@@ -165,105 +213,153 @@ export default function EpisodePlayer({ series, episodes, user }: EpisodePlayerP
         })
         setLiveCoinBalance((b) => b + 10)
       } else {
-        // Use the authoritative newBalance from the server
         const { newBalance } = await res.json()
         if (typeof newBalance === 'number') {
           setLiveCoinBalance(newBalance)
         }
-        console.log('[EpisodePlayer] episode unlocked, newBalance:', newBalance)
       }
     } catch (err) {
-      console.error('[EpisodePlayer] unlock fetch failed:', err)
+      console.error('[EpisodePlayer] unlock error:', err)
     }
-  }, [paywallEpisode, authUser, liveCoinBalance, router])
-
+  }, [paywallEpisode, authUser, liveCoinBalance, router, series.id, series.slug, trackEvent])
 
   const handleSubscribe = useCallback(() => {
     if (!authUser) {
-      router.push('/login?returnTo=/watch/forbidden-lesson')
+      router.push(`/login?returnTo=/watch/${series.slug}`)
       return
     }
-    if (!paddle) {
-      console.error('[Paddle] instance not initialized — checkout aborted')
-      return
-    }
+    if (!paddle) return
     paddle.Checkout.open({
-      items: [{ priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_100 ?? '', quantity: 1 }],
+      items: [
+        {
+          priceId:
+            process.env.NEXT_PUBLIC_PADDLE_PRICE_SUBSCRIPTION ||
+            process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_100 ||
+            '',
+          quantity: 1,
+        },
+      ],
       customData: { user_id: authUser.id },
     })
-  }, [paddle, authUser, router])
+  }, [paddle, authUser, router, series.slug])
 
-  const handleBuyCoins = useCallback((pkg: CoinPackage) => {
-    const activePriceId =
-      pkg.paddle_price_id ||
-      process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_100 ||
-      'pri_01m10azbe4dt3qzh22p7aepjg4'
+  const handleBuyCoins = useCallback(
+    (pkg: CoinPackage) => {
+      const activePriceId =
+        pkg.paddle_price_id ||
+        process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_100 ||
+        'pri_01m10azbe4dt3qzh22p7aepjg4'
 
-    console.log('[Paddle] checkout triggered:', { activePriceId, paddle: !!paddle, userId: authUser?.id })
+      if (!authUser) {
+        router.push(`/login?returnTo=/watch/${series.slug}`)
+        return
+      }
 
-    if (!authUser) {
-      console.warn('[Paddle] no auth session — redirecting to login')
-      router.push('/login?returnTo=/watch/forbidden-lesson')
-      return
-    }
+      if (!paddle) return
 
-    if (!paddle) {
-      console.error('[Paddle] instance not initialized — checkout aborted')
-      return
-    }
-
-    paddle.Checkout.open({
-      items: [{ priceId: activePriceId, quantity: 1 }],
-      customData: { user_id: authUser.id },
-    })
-  }, [paddle, authUser, router])
-
-
+      paddle.Checkout.open({
+        items: [{ priceId: activePriceId, quantity: 1 }],
+        customData: { user_id: authUser.id, coins: String(pkg.coins) },
+      })
+    },
+    [paddle, authUser, router, series.slug]
+  )
 
   return (
     <>
-      {/* Scroll container */}
+      {/* Top Overlay Bar */}
+      <div className="fixed top-0 left-0 right-0 z-40 px-6 py-4 flex items-center justify-between pointer-events-auto bg-gradient-to-b from-black/80 to-transparent">
+        <Link
+          href={`/series/${series.slug}`}
+          className="flex items-center gap-2 text-white/90 hover:text-white bg-black/50 backdrop-blur-md px-3.5 py-2 rounded-full border border-white/10 hover:bg-black/70 transition-all text-xs font-semibold"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Series</span>
+        </Link>
+
+        {isSubscribed && (
+          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-yellow-400/20 text-yellow-400 border border-yellow-400/30 text-xs font-bold backdrop-blur-md">
+            <Crown className="w-3.5 h-3.5" />
+            <span>All-Access Pass Active</span>
+          </span>
+        )}
+      </div>
+
+      {/* Vertical Scroll Snap Container */}
       <div
         ref={containerRef}
         className="h-dvh overflow-y-scroll"
-        style={{ scrollSnapType: 'y mandatory' }}
+        style={{ scrollSnapType: 'y mandatory', scrollbarWidth: 'none' }}
       >
         {episodes.map((episode) => {
-          const isLocked = !episode.is_free && !unlockedEpisodes.has(episode.id)
+          const isLocked =
+            !isSubscribed && !episode.is_free && !unlockedEpisodes.has(episode.id)
+          const isPaused = pausedMap[episode.id] ?? false
+          const isLoading = loadingMap[episode.id] ?? false
 
           return (
             <div
               key={episode.id}
-              className="relative w-full h-dvh flex items-center justify-center bg-black"
-              style={{ scrollSnapAlign: 'start' }}
+              className="relative w-full h-dvh flex items-center justify-center bg-black overflow-hidden"
+              style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
             >
-              {/* Video or thumbnail */}
+              {/* Video Player Element */}
               {episode.video_url && !isLocked ? (
-                <video
-                  ref={(el) => {
-                    if (el) videoRefs.current.set(episode.id, el)
-                    else videoRefs.current.delete(episode.id)
-                  }}
-                  src={episode.video_url}
-                  className="w-full h-full object-cover"
-                  loop
-                  muted={muted}
-                  playsInline
-                  preload="metadata"
-                />
+                <div
+                  className="relative w-full h-full cursor-pointer flex items-center justify-center bg-black"
+                  onClick={() => toggleVideoPlayback(episode.id)}
+                >
+                  <video
+                    ref={(el) => {
+                      if (el) {
+                        el.muted = muted
+                        el.defaultMuted = true
+                        videoRefs.current.set(episode.id, el)
+                      } else {
+                        videoRefs.current.delete(episode.id)
+                      }
+                    }}
+                    src={episode.video_url}
+                    className="w-full h-full object-cover"
+                    loop
+                    playsInline
+                    preload="auto"
+                    onWaiting={() =>
+                      setLoadingMap((prev) => ({ ...prev, [episode.id]: true }))
+                    }
+                    onPlaying={() => {
+                      setLoadingMap((prev) => ({ ...prev, [episode.id]: false }))
+                      setPausedMap((prev) => ({ ...prev, [episode.id]: false }))
+                    }}
+                    onPause={() =>
+                      setPausedMap((prev) => ({ ...prev, [episode.id]: true }))
+                    }
+                  />
+
+                  {/* Centered Play Overlay Icon if Paused */}
+                  {isPaused && !isLoading && (
+                    <div className="absolute z-20 w-20 h-20 rounded-full bg-black/60 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-2xl animate-in zoom-in-75 duration-150">
+                      <Play className="w-9 h-9 text-yellow-400 fill-yellow-400 ml-1" />
+                    </div>
+                  )}
+
+                  {/* Loading Spinner */}
+                  {isLoading && (
+                    <div className="absolute z-20 flex flex-col items-center gap-2">
+                      <Loader2 className="w-10 h-10 text-yellow-400 animate-spin" />
+                      <span className="text-xs text-gray-300 font-medium">Loading video...</span>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <>
-                  {/* Thumbnail */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={episode.thumbnail_url}
                     alt={episode.title}
                     className={`w-full h-full object-cover ${
-                      isLocked ? 'blur-lg scale-110 brightness-50' : ''
+                      isLocked ? 'blur-xl scale-110 brightness-40' : ''
                     }`}
                   />
-
-                  {/* Placeholder video ref for IntersectionObserver */}
                   <video
                     ref={(el) => {
                       if (el) videoRefs.current.set(episode.id, el)
@@ -275,37 +371,46 @@ export default function EpisodePlayer({ series, episodes, user }: EpisodePlayerP
               )}
 
               {/* Gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
 
               {/* Lock overlay for locked episodes */}
               {isLocked && (
                 <div
-                  className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer"
+                  className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer px-6 text-center z-20"
                   onClick={() => handleEpisodeClick(episode)}
                 >
-                  <div className="w-20 h-20 rounded-full bg-black/60 border border-yellow-400/50 flex items-center justify-center mb-4 backdrop-blur-sm">
+                  <div className="w-20 h-20 rounded-full bg-black/70 border-2 border-yellow-400/80 flex items-center justify-center mb-4 backdrop-blur-md shadow-2xl animate-pulse">
                     <Lock className="w-9 h-9 text-yellow-400" />
                   </div>
-                  <p className="text-white font-bold text-lg">Episode {episode.episode_number}</p>
-                  <p className="text-gray-300 text-sm">Tap to unlock · 10 coins</p>
+                  <p className="text-white font-black text-2xl mb-1">
+                    Episode {episode.episode_number} Locked
+                  </p>
+                  <p className="text-gray-300 text-sm mb-5">
+                    Tap to unlock for 10 coins or get an All-Access Pass
+                  </p>
+                  <button className="px-6 py-3 bg-yellow-400 text-black font-bold text-sm rounded-xl shadow-lg hover:bg-yellow-300 transition-all">
+                    Unlock Now
+                  </button>
                 </div>
               )}
 
-              {/* Bottom info */}
-              <div className="absolute bottom-0 left-0 right-0 p-6">
-                <div className="flex items-end justify-between">
+              {/* Bottom Info Overlay */}
+              <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 z-30 pointer-events-none">
+                <div className="flex items-end justify-between pointer-events-auto">
                   <div className="flex-1 mr-4">
-                    <span className="inline-block px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-400 text-xs font-semibold mb-2">
+                    <span className="inline-block px-2.5 py-1 rounded-md bg-yellow-400/20 text-yellow-400 text-xs font-bold mb-2 border border-yellow-400/30">
                       {series.title}
                     </span>
-                    <h3 className="text-white font-bold text-lg leading-tight">
+                    <h3 className="text-white font-black text-xl md:text-2xl leading-tight">
                       {episode.episode_number}. {episode.title}
                     </h3>
-                    <p className="text-gray-400 text-sm mt-1">
+                    <p className="text-gray-400 text-xs md:text-sm mt-1">
                       {Math.floor(episode.duration_seconds / 60)}m{' '}
                       {episode.duration_seconds % 60}s
-                      {episode.is_free && (
-                        <span className="ml-2 text-green-400 font-semibold">· Free</span>
+                      {episode.is_free ? (
+                        <span className="ml-2 text-green-400 font-bold">• Free</span>
+                      ) : (
+                        <span className="ml-2 text-yellow-400 font-semibold">• 10 Coins</span>
                       )}
                     </p>
                   </div>
@@ -315,8 +420,12 @@ export default function EpisodePlayer({ series, episodes, user }: EpisodePlayerP
                     <div className="flex flex-col gap-3">
                       {episode.video_url && (
                         <button
-                          onClick={() => setMuted((m) => !m)}
-                          className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setMuted((m) => !m)
+                          }}
+                          className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center hover:bg-white/20 transition-all border border-white/20 shadow-lg"
+                          aria-label="Toggle mute"
                         >
                           {muted ? (
                             <VolumeX className="w-5 h-5 text-white" />
@@ -324,11 +433,6 @@ export default function EpisodePlayer({ series, episodes, user }: EpisodePlayerP
                             <Volume2 className="w-5 h-5 text-white" />
                           )}
                         </button>
-                      )}
-                      {!episode.video_url && (
-                        <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
-                          <Play className="w-5 h-5 text-white" />
-                        </div>
                       )}
                     </div>
                   )}

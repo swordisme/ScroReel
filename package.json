@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "bot:generate": "node scripts/bot/cli-generator.mjs"
   },
   "dependencies": {
     "@paddle/paddle-node-sdk": "^1.7.0",

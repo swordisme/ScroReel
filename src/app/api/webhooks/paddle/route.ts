@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { Paddle, Environment, EventName } from '@paddle/paddle-node-sdk'
 import { createServiceClient } from '@/lib/supabase/server'
 
@@ -24,7 +24,7 @@ async function creditCoins(transaction: {
   customData: unknown
   items?: { price?: { id?: string } }[]
 }): Promise<NextResponse | null> {
-  const customData = transaction.customData as { user_id?: string } | null
+  const customData = transaction.customData as { user_id?: string; coins?: number } | null
   const userId = customData?.user_id
   console.log('[Paddle Webhook] userId from customData:', userId)
 
@@ -33,21 +33,23 @@ async function creditCoins(transaction: {
     return NextResponse.json({ error: 'Missing user_id in custom_data' }, { status: 400 })
   }
 
-  // Build price->coins map at request time so env var is always current
+  // Build price->coins map at request time
   const priceCoins: Record<string, number> = {
-    [process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_100 ?? 'UNSET']: 100,
+    [process.env.NEXT_PUBLIC_PADDLE_PRICE_50_COINS ?? 'PRICE_50']: 50,
+    [process.env.NEXT_PUBLIC_PADDLE_PRICE_100 ?? 'PRICE_100']: 100,
+    [process.env.NEXT_PUBLIC_PADDLE_PRICE_150_COINS ?? 'PRICE_150']: 150,
+    [process.env.NEXT_PUBLIC_PADDLE_PRICE_500_COINS ?? 'PRICE_500']: 500,
   }
 
   const priceId = transaction.items?.[0]?.price?.id ?? ''
-  const coinsToCredit = priceCoins[priceId] ?? 0
+  const coinsToCredit = customData?.coins ?? priceCoins[priceId] ?? 0
   console.log('[Paddle Webhook] priceId:', priceId, 'coinsToCredit:', coinsToCredit)
 
   if (coinsToCredit === 0) {
-    console.log('[Paddle Webhook] unrecognised priceId — ignoring gracefully')
-    return NextResponse.json({ received: true })
+    console.log('[Paddle Webhook] unrecognised priceId / not a coin pack — checking next handlers')
+    return null
   }
 
-  // Supabase service client (SUPABASE_SERVICE_ROLE_KEY -> bypasses RLS)
   let supabase: Awaited<ReturnType<typeof createServiceClient>>
   try {
     supabase = await createServiceClient()
@@ -57,7 +59,6 @@ async function creditCoins(transaction: {
     return NextResponse.json({ error: 'Database connection failed' }, { status: 500 })
   }
 
-  // Read current balance (null if row missing - first-time buyer)
   const { data: currentProfile, error: profileError } = await supabase
     .from('profiles')
     .select('coin_balance')
@@ -66,14 +67,12 @@ async function creditCoins(transaction: {
 
   if (profileError) {
     console.error('[Paddle Webhook] profile fetch error:', JSON.stringify(profileError))
-    console.error('[Paddle Webhook] profile fetch details:', profileError.message, profileError.code, profileError.details)
-    return NextResponse.json({ error: 'Failed to fetch user profile', details: profileError.message }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 })
   }
 
   const newBalance = (currentProfile?.coin_balance ?? 0) + coinsToCredit
   console.log('[Paddle Webhook] coin_balance:', currentProfile?.coin_balance ?? 'NEW ROW', '->', newBalance)
 
-  // Upsert with onConflict:'id' - creates row if missing, updates if present
   const { error: upsertError } = await supabase
     .from('profiles')
     .upsert(
@@ -87,24 +86,68 @@ async function creditCoins(transaction: {
 
   if (upsertError) {
     console.error('[Paddle Webhook] failed to upsert coin_balance:', JSON.stringify(upsertError))
-    console.error('[Paddle Webhook] upsert details:', upsertError.message, upsertError.code, upsertError.details)
-    return NextResponse.json({ error: 'Failed to credit coins', details: upsertError.message }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to credit coins' }, { status: 500 })
   }
 
-  // Record transaction log (non-fatal)
-  const { error: txError } = await supabase.from('coin_transactions').insert({
+  await supabase.from('coin_transactions').insert({
     user_id: userId,
     amount: coinsToCredit,
     type: 'purchase',
     description: `Purchased ${coinsToCredit} coins via Paddle (tx: ${transaction.id})`,
   })
 
-  if (txError) {
-    console.warn('[Paddle Webhook] coin_transactions insert failed (non-fatal):', JSON.stringify(txError))
+  console.log('[Paddle Webhook] successfully credited', coinsToCredit, 'coins to user', userId)
+  return null
+}
+
+// ---------------------------------------------------------------------------
+// Shared helper — handle subscription activate/update/cancel
+// ---------------------------------------------------------------------------
+async function handleSubscription(
+  subscription: {
+    id: string
+    status: string
+    customData?: unknown
+    currentBillingPeriod?: { endsAt?: string }
+  },
+  isCancel = false
+): Promise<void> {
+  const customData = subscription.customData as { user_id?: string } | null
+  const userId = customData?.user_id
+  if (!userId) return
+
+  let supabase: Awaited<ReturnType<typeof createServiceClient>>
+  try {
+    supabase = await createServiceClient()
+  } catch (err) {
+    console.error('[Paddle Webhook] DB error on subscription:', err)
+    return
   }
 
-  console.log('[Paddle Webhook] credited', coinsToCredit, 'coins to user', userId)
-  return null // success - caller returns { received: true }
+  const isActive = !isCancel && (subscription.status === 'active' || subscription.status === 'trialing')
+  const periodEnd = subscription.currentBillingPeriod?.endsAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+  await supabase.from('profiles').upsert(
+    {
+      id: userId,
+      subscription_active: isActive,
+      subscription_expires_at: isActive ? periodEnd : null,
+      paddle_subscription_id: subscription.id,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'id' }
+  )
+
+  await supabase.from('subscriptions').upsert(
+    {
+      user_id: userId,
+      paddle_subscription_id: subscription.id,
+      status: isActive ? 'active' : 'cancelled',
+      plan_name: 'All-Access Pass',
+      current_period_end: periodEnd,
+    },
+    { onConflict: 'paddle_subscription_id' }
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -113,59 +156,63 @@ async function creditCoins(transaction: {
 export async function POST(req: NextRequest) {
   console.log('[Paddle Webhook] incoming request')
 
-  // 1. Read raw body - MUST be done before any other body access
   let rawBody: string
   try {
     rawBody = await req.text()
-    console.log('[Paddle Webhook] raw body length:', rawBody.length)
   } catch (err) {
     console.error('[Paddle Webhook] failed to read raw body:', err)
     return NextResponse.json({ error: 'Failed to read request body' }, { status: 400 })
   }
 
-  // 2. Signature + secret
   const signature = req.headers.get('paddle-signature') ?? ''
   const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET_KEY ?? ''
 
-  console.log('[Paddle Webhook] paddle-signature present:', !!signature)
-  console.log('[Paddle Webhook] PADDLE_WEBHOOK_SECRET_KEY set:', !!webhookSecret)
-
-  if (!signature) {
-    console.error('[Paddle Webhook] missing paddle-signature header')
-    return NextResponse.json({ error: 'Missing paddle-signature header' }, { status: 401 })
+  if (!signature || !webhookSecret) {
+    console.error('[Paddle Webhook] missing signature or secret')
+    return NextResponse.json({ error: 'Missing webhook configuration' }, { status: 401 })
   }
 
-  if (!webhookSecret) {
-    console.error('[Paddle Webhook] PADDLE_WEBHOOK_SECRET_KEY env var not set')
-    return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
-  }
-
-  // 3. Verify signature and unmarshal event
-  let event: Awaited<ReturnType<typeof paddle.webhooks.unmarshal>>
+  let event: any
   try {
     event = await paddle.webhooks.unmarshal(rawBody, webhookSecret, signature)
-    console.log('[Paddle Webhook] signature verified, eventType:', event?.eventType)
+    console.log('[Paddle Webhook] verified eventType:', event?.eventType)
   } catch (err) {
     console.error('[Paddle Webhook] signature verification failed:', err)
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 })
   }
 
   if (!event) {
-    console.error('[Paddle Webhook] unmarshal returned null/undefined')
     return NextResponse.json({ error: 'Failed to unmarshal event' }, { status: 400 })
   }
 
-  // 4. Handle transaction.completed AND transaction.paid
-  //    Paddle sandbox may fire either depending on payment method configuration
+  // 1. Transaction events (Coin Packs)
   if (
     event.eventType === EventName.TransactionCompleted ||
-    event.eventType === EventName.TransactionPaid
+    event.eventType === EventName.TransactionPaid ||
+    event.eventType === 'transaction.completed' ||
+    event.eventType === 'transaction.paid'
   ) {
-    console.log('[Paddle Webhook] handling', event.eventType)
-    const earlyResponse = await creditCoins(event.data as Parameters<typeof creditCoins>[0])
+    const earlyResponse = await creditCoins(event.data)
     if (earlyResponse) return earlyResponse
-  } else {
-    console.log('[Paddle Webhook] unhandled eventType:', event.eventType, '- ignoring')
+  }
+
+  // 2. Subscription events (All-Access Pass)
+  if (
+    event.eventType === EventName.SubscriptionActivated ||
+    event.eventType === EventName.SubscriptionUpdated ||
+    event.eventType === 'subscription.activated' ||
+    event.eventType === 'subscription.updated'
+  ) {
+    await handleSubscription(event.data, false)
+  }
+
+  if (
+    event.eventType === EventName.SubscriptionCanceled ||
+    event.eventType === EventName.SubscriptionPastDue ||
+    event.eventType === 'subscription.canceled' ||
+    event.eventType === 'subscription.past_due'
+  ) {
+    await handleSubscription(event.data, true)
   }
 
   return NextResponse.json({ received: true })
