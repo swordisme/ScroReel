@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * SnackDrama AI Content Bot — CLI Runner
+ * ScroReel AI Content Bot — CLI Runner
  * Run anytime with: npm run bot:generate
  */
 
@@ -9,7 +9,7 @@ import { analyzeMarketTrend } from '../../src/lib/bot/trend-analyzer.ts'
 import { generateSeriesFromTrope } from '../../src/lib/bot/script-engine.ts'
 
 console.log('\n🎬 ═══════════════════════════════════════════════════')
-console.log('   SNACKDRAMA AUTONOMOUS AI CONTENT ENGINE')
+console.log('   SCROREEL AUTONOMOUS AI CONTENT ENGINE')
 console.log('═════════════════════════════════════════════════════\n')
 
 console.log('🔍 [1/3] Scanning TikTok / BookTok / DramaBox market trends...')

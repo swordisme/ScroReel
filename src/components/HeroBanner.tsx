@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Play, Info } from 'lucide-react'
 import type { Series } from '@/types'
 import { useLanguage } from '@/lib/i18n/LanguageContext'
+import AIBadge from './AIBadge'
 
 export default function HeroBanner({ series }: { series: Series }) {
   const { t } = useLanguage()
@@ -27,6 +28,7 @@ export default function HeroBanner({ series }: { series: Series }) {
           <span className="px-2 py-0.5 rounded bg-yellow-400/20 text-yellow-400 font-bold text-xs tracking-widest uppercase border border-yellow-400/30">
             🔥 {t('featured')}
           </span>
+          <AIBadge size="md" />
           <span className="text-gray-300 text-sm font-medium">
             {series.genre} · {series.release_year} · {series.rating}
           </span>

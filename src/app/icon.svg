@@ -29,7 +29,7 @@
   <!-- Rounded App Tile -->
   <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#bgGrad)" stroke="url(#rimGrad)" stroke-width="8" />
 
-  <!-- Stylized SnackDrama "S" & Play Glyph -->
+  <!-- Stylized ScroReel "S" & Play Glyph -->
   <g filter="url(#glow)">
     <!-- Top Arc of S -->
     <path

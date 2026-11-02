@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Play } from 'lucide-react'
 import type { Series } from '@/types'
+import AIBadge from './AIBadge'
 
 interface ContentCardProps {
   series: Series
@@ -50,6 +51,9 @@ export default function ContentCard({ series, size = 'md' }: ContentCardProps) {
           <span className="px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-gray-300 text-[10px] font-medium rounded">
             {series.rating}
           </span>
+        </div>
+        <div className="absolute bottom-2 left-2">
+          <AIBadge />
         </div>
       </div>
 

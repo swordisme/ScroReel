@@ -37,6 +37,7 @@ export interface TranslationDict {
   seasonFinale: string
   unlockForCoins: string
   allAccessWeekly: string
+  aiGenerated: string
 }
 
 export const TRANSLATIONS: Record<Language, TranslationDict> = {
@@ -60,6 +61,7 @@ export const TRANSLATIONS: Record<Language, TranslationDict> = {
     watchNow: 'Watch Now',
     moreInfo: 'More Info',
     featured: 'Featured',
+    aiGenerated: 'AI-Generated',
     episodes: 'Episodes',
     free: 'Free',
     locked: 'Locked',
@@ -98,6 +100,7 @@ export const TRANSLATIONS: Record<Language, TranslationDict> = {
     watchNow: 'شاهد الآن',
     moreInfo: 'تفاصيل أكثر',
     featured: 'مميز',
+    aiGenerated: 'مُنشأ بالذكاء الاصطناعي',
     episodes: 'حلقات',
     free: 'مجاني',
     locked: 'مغلق',
@@ -136,6 +139,7 @@ export const TRANSLATIONS: Record<Language, TranslationDict> = {
     watchNow: 'Regarder',
     moreInfo: 'Plus d’infos',
     featured: 'En vedette',
+    aiGenerated: 'Généré par IA',
     episodes: 'Épisodes',
     free: 'Gratuit',
     locked: 'Verrouillé',
@@ -174,6 +178,7 @@ export const TRANSLATIONS: Record<Language, TranslationDict> = {
     watchNow: 'Ver Ahora',
     moreInfo: 'Más Información',
     featured: 'Destacado',
+    aiGenerated: 'Generado por IA',
     episodes: 'Episodios',
     free: 'Gratis',
     locked: 'Bloqueado',

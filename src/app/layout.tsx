@@ -7,8 +7,8 @@ import { LanguageProvider } from '@/lib/i18n/LanguageContext'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'SnackDrama - Watch Vertical Drama Series',
-  description: 'Binge short-form drama episodes. Free to start, unlock more with coins.',
+  title: 'ScroReel - AI-Generated Drama Series & Movies',
+  description: 'Binge AI-generated short-form drama episodes. Free to start, unlock more with coins.',
   icons: {
     icon: '/icon.svg',
     shortcut: '/icon.svg',

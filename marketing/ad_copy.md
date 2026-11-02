@@ -1,4 +1,4 @@
-# 🚀 Viral Ad Copy & Hook Templates for SnackDrama
+# 🚀 Viral Ad Copy & Hook Templates for ScroReel
 
 Use these battle-tested hooks, captions, and ad creatives for your Meta (Facebook/Instagram) and TikTok ad campaigns.
 
@@ -53,7 +53,7 @@ Use these battle-tested hooks, captions, and ad creatives for your Meta (Faceboo
 > He has nothing to his name. Her fiancé owns half the city.  
 > But when he touched her, her fiancé knew he had already lost. 💥  
 >  
-> Stream the viral drama **"Forbidden Lesson"** on SnackDrama.  
+> Stream the viral drama **"Forbidden Lesson"** on ScroReel.  
 > 🎬 Free Episodes 1–5 Available Now!
 
 ---

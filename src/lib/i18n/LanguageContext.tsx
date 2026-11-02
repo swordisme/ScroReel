@@ -21,7 +21,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en')
 
   useEffect(() => {
-    const saved = localStorage.getItem('snackdrama_lang') as Language
+    const saved = localStorage.getItem('scroreel_lang') as Language
     if (saved && ['en', 'ar', 'fr', 'es'].includes(saved)) {
       setLanguageState(saved)
     }
@@ -29,7 +29,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang)
-    localStorage.setItem('snackdrama_lang', lang)
+    localStorage.setItem('scroreel_lang', lang)
     document.documentElement.lang = lang
     if (lang === 'ar') {
       document.documentElement.dir = 'rtl'

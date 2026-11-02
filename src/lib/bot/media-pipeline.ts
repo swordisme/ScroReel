@@ -71,7 +71,7 @@ export async function generateVoiceoverWithElevenLabs(
 
     if (!res.ok) return null
     // Returns audio stream buffer or hosted CDN link
-    return 'https://cdn.snackdrama.com/audio/sample_dialogue.mp3'
+    return 'https://cdn.scroreel.com/audio/sample_dialogue.mp3'
   } catch (e) {
     return null
   }

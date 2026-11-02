@@ -65,8 +65,8 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="text-3xl font-bold">
-            <span className="text-yellow-400">Snack</span>
-            <span className="text-white">Drama</span>
+            <span className="text-yellow-400">Scro</span>
+            <span className="text-white">Reel</span>
           </Link>
           <p className="text-gray-400 mt-2 text-sm">
             {isSignUp ? 'Create your account to start watching' : 'Sign in to track your episodes'}

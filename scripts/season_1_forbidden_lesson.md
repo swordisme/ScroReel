@@ -1,5 +1,5 @@
 # 🎬 FORBIDDEN LESSON
-### A SnackDrama Original Series — Season 1
+### A ScroReel Original Series — Season 1
 **Format:** Vertical Short-Form Drama | 15 Episodes | 60–90 sec each
 
 ---
@@ -993,7 +993,7 @@
 ### Tone Reference
 - **Episodes 1–5:** *Normal People* meets *Fleabag* — restrained, electric, literary
 - **Episodes 6–10:** Escalating stakes — *Euphoria* energy in the drama, *Succession* energy in the antagonist
-- **Episodes 11–15:** Full SnackDrama payoff — power shifts, confrontations, romantic release, and final gut-punch twist
+- **Episodes 11–15:** Full ScroReel payoff — power shifts, confrontations, romantic release, and final gut-punch twist
 
 ### Colour Grade Guide
 | Phase | Tone | Palette |
@@ -1017,5 +1017,5 @@
 
 ---
 
-*© Forbidden Lesson — Season 1 Script | SnackDrama Project | 2026*
+*© Forbidden Lesson — Season 1 Script | ScroReel Project | 2026*
 *Written for vertical short-form video production.*

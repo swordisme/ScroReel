@@ -114,7 +114,7 @@ export async function generateMetadata({ params }: WatchPageProps) {
   const { series: rawSlug } = await params
   const decodedSlug = decodeURIComponent(rawSlug || '').replace(/-/g, ' ')
   return {
-    title: `Watch ${decodedSlug} | SnackDrama`,
-    description: `Stream 15 episodes of short-form vertical drama on SnackDrama.`,
+    title: `Watch ${decodedSlug} | ScroReel`,
+    description: `Stream 15 episodes of short-form vertical drama on ScroReel.`,
   }
 }

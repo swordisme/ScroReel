@@ -1,5 +1,5 @@
 -- ===============================================================
--- SnackDrama Schema v2 — Netflix Upgrade
+-- ScroReel Schema v2 — Netflix Upgrade
 -- Run this in your Supabase SQL Editor after the original schema
 -- ===============================================================
 

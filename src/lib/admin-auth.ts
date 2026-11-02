@@ -26,7 +26,7 @@ function safeEqual(a: string, b: string) {
 export function adminSessionToken(): string | null {
   const password = process.env.ADMIN_PASSWORD
   if (!password) return null
-  return createHash('sha256').update(`snackdrama-admin:${password}`).digest('hex')
+  return createHash('sha256').update(`scroreel-admin:${password}`).digest('hex')
 }
 
 export function isValidAdminPassword(password: unknown): boolean {

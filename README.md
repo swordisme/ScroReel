@@ -1,6 +1,6 @@
-# SnackDrama 🎬
+# ScroReel 🎬
 
-A paywall-gated vertical video player platform — like TikTok/Reels but for short-form drama series. Users watch free episodes and unlock premium content with coins or a subscription.
+A Netflix-style streaming platform for AI-generated short-form drama series and movies, on the web and as an app. Users watch free episodes and unlock premium content with coins or a subscription.
 
 ## Features
 

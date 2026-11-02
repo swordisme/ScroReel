@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Play, Sparkles, CheckCircle } from 'lucide-react'
 import Header from '@/components/Header'
+import AIBadge from '@/components/AIBadge'
 import { MOCK_ALL_SERIES, getMockEpisodes } from '@/lib/mock-data'
 import { createClient } from '@/lib/supabase/server'
 import type { Series, UserProfile } from '@/types'
@@ -117,6 +118,7 @@ export default async function SeriesDetailPage({
             <span className="px-2.5 py-0.5 rounded bg-yellow-400 text-black font-black text-xs uppercase tracking-wider">
               {series.content_type || 'SERIES'}
             </span>
+            <AIBadge size="md" />
             <span className="text-gray-300 text-xs md:text-sm font-medium">
               {series.genre} · {series.release_year} · {series.rating}
             </span>

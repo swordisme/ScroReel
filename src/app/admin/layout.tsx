@@ -35,7 +35,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <aside className="w-64 bg-gray-900/95 border-r border-gray-800 flex flex-col flex-shrink-0 sticky top-0 h-screen">
         <div className="p-6 border-b border-gray-800 flex items-center justify-between">
           <div>
-            <p className="text-yellow-400 font-black text-xl tracking-tight">SnackDrama</p>
+            <p className="text-yellow-400 font-black text-xl tracking-tight">ScroReel</p>
             <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mt-0.5">
               Studio Admin
             </p>

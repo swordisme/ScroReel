@@ -1,5 +1,5 @@
 -- ===============================================================
--- SnackDrama Schema v3 — Atomic coin unlocks
+-- ScroReel Schema v3 — Atomic coin unlocks
 -- Run this in your Supabase SQL Editor after schema.sql and schema_v2.sql
 -- ===============================================================
 

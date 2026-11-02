@@ -46,7 +46,7 @@ export default function AdminLoginPage() {
           <div className="w-16 h-16 rounded-2xl bg-yellow-400/10 border border-yellow-400/30 flex items-center justify-center mb-4 text-yellow-400 shadow-inner">
             <ShieldCheck className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight">SnackDrama Studio</h1>
+          <h1 className="text-2xl font-black tracking-tight">ScroReel Studio</h1>
           <p className="text-gray-400 text-xs mt-1">
             Restricted Admin Area • Creator Access Only
           </p>

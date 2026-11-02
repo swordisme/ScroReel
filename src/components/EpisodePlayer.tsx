@@ -7,6 +7,7 @@ import { Lock, Volume2, VolumeX, ArrowLeft, Crown, Play, Pause, Loader2 } from '
 import type { User } from '@supabase/supabase-js'
 import type { Episode, Series, UserProfile } from '@/types'
 import PaywallModal from './PaywallModal'
+import AIBadge from './AIBadge'
 import type { CoinPackage } from '@/types'
 import { usePaddle } from './PaddleProvider'
 import { createClient } from '@/lib/supabase/client'
@@ -397,9 +398,12 @@ export default function EpisodePlayer({ series, episodes, user, initialUnlockedI
               <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 z-30 pointer-events-none">
                 <div className="flex items-end justify-between pointer-events-auto">
                   <div className="flex-1 mr-4">
-                    <span className="inline-block px-2.5 py-1 rounded-md bg-yellow-400/20 text-yellow-400 text-xs font-bold mb-2 border border-yellow-400/30">
-                      {series.title}
-                    </span>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="inline-block px-2.5 py-1 rounded-md bg-yellow-400/20 text-yellow-400 text-xs font-bold border border-yellow-400/30">
+                        {series.title}
+                      </span>
+                      <AIBadge size="md" />
+                    </div>
                     <h3 className="text-white font-black text-xl md:text-2xl leading-tight">
                       {episode.episode_number}. {episode.title}
                     </h3>

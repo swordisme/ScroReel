@@ -119,10 +119,10 @@ export default function Header({ user }: HeaderProps) {
           <div className="flex items-center gap-8">
             <Link href="/" className="flex items-center gap-2.5 group">
               <div className="w-8 h-8 rounded-lg overflow-hidden border border-yellow-400/40 shadow-sm group-hover:scale-105 transition-transform flex-shrink-0">
-                <img src="/icon.svg" alt="SnackDrama" className="w-full h-full object-cover" />
+                <img src="/icon.svg" alt="ScroReel" className="w-full h-full object-cover" />
               </div>
               <span className="text-yellow-400 font-black text-2xl tracking-tighter">
-                Snack<span className="text-white">Drama</span>
+                Scro<span className="text-white">Reel</span>
               </span>
             </Link>
 
