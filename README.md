@@ -26,8 +26,8 @@ A Netflix-style streaming platform for AI-generated short-form drama series and 
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/swordisme/SnackDrama.git
-cd SnackDrama
+git clone https://github.com/swordisme/ScroReel.git
+cd ScroReel
 npm install
 ```
 
