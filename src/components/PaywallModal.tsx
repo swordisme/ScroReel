@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { X, Lock, Coins, Zap } from 'lucide-react'
 import { COIN_PACKAGES } from '@/lib/mock-data'
 import type { CoinPackage } from '@/types'
@@ -119,6 +120,12 @@ export default function PaywallModal({
             </button>
           ))}
         </div>
+
+        <p className="mt-4 text-center text-[11px] leading-relaxed text-gray-500">
+          The subscription renews weekly until cancelled. By purchasing you agree to our{' '}
+          <Link href="/terms" target="_blank" className="underline hover:text-gray-300">Terms</Link> and{' '}
+          <Link href="/refunds" target="_blank" className="underline hover:text-gray-300">Refund Policy</Link>.
+        </p>
       </div>
     </div>
   )
