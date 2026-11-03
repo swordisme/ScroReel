@@ -53,7 +53,7 @@ cp .env.example .env.local
 | `ADMIN_PASSWORD` | Optional passcode for `/admin`. If unset, only admin emails can sign in |
 | `ADMIN_EMAIL` | Optional extra admin email (in addition to the built-in owner) |
 | `FAL_KEY`, `ELEVENLABS_API_KEY` | Optional, for the AI Trend Studio media pipeline |
-| `NEXT_PUBLIC_APP_URL` | Your app URL (e.g., https://yourapp.vercel.app) |
+| `NEXT_PUBLIC_APP_URL` | Your app URL (e.g., https://scroreel.app) |
 
 ### 3. Supabase setup
 

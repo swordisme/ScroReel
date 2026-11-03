@@ -8,8 +8,8 @@ export const LEGAL = {
   governingCountry: '',
   // Must be a mailbox you actually read
   contactEmail: 'support@scroreel.app',
-  // Public address shown in the Terms; switch to your own domain once it's live
-  siteUrl: 'https://scroreel.vercel.app',
+  // Public address shown in the Terms
+  siteUrl: 'https://scroreel.app',
   lastUpdated: 'November 2, 2026',
   refundWindowDays: 14,
   freeEpisodes: 5,
