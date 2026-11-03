@@ -66,27 +66,28 @@ alter table public.series_categories enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.analytics_events enable row level security;
 
+drop policy if exists "Anyone can view categories" on public.categories;
 create policy "Anyone can view categories"
   on public.categories for select
   to anon, authenticated using (true);
 
+drop policy if exists "Anyone can view series_categories" on public.series_categories;
 create policy "Anyone can view series_categories"
   on public.series_categories for select
   to anon, authenticated using (true);
 
+drop policy if exists "Users can view own subscription" on public.subscriptions;
 create policy "Users can view own subscription"
   on public.subscriptions for select
   using (auth.uid() = user_id);
 
-create policy "Service role can manage subscriptions"
-  on public.subscriptions for all
-  using (true);
-
+drop policy if exists "Anyone can insert analytics" on public.analytics_events;
 create policy "Anyone can insert analytics"
   on public.analytics_events for insert
   to anon, authenticated
   with check (true);
 
+drop policy if exists "Users can view own analytics" on public.analytics_events;
 create policy "Users can view own analytics"
   on public.analytics_events for select
   using (auth.uid() = user_id);

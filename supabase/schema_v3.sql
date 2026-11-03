@@ -1,6 +1,7 @@
 -- ===============================================================
 -- ScroReel Schema v3 — Atomic coin unlocks
 -- Run this in your Supabase SQL Editor after schema.sql and schema_v2.sql
+-- Safe to run more than once
 -- ===============================================================
 
 -- 1. Let unlocks reference catalog episodes that are not (yet) rows in
@@ -72,3 +73,13 @@ revoke execute on function public.unlock_episode(uuid, text, integer)
   from public, anon, authenticated;
 grant execute on function public.unlock_episode(uuid, text, integer)
   to service_role;
+
+-- 3. Lock down data only the server should change. The server uses the
+--    service role, which bypasses RLS, so it needs none of these policies.
+--    Without this, a signed-in user could set their own coin_balance and
+--    subscription_active with the public anon key.
+drop policy if exists "Users can update own profile" on public.profiles;
+drop policy if exists "Service role can manage subscriptions" on public.subscriptions;
+
+-- The view runs with its owner's rights, so it would expose analytics to anyone
+revoke all on public.episode_analytics from anon, authenticated;
