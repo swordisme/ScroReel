@@ -90,23 +90,23 @@ async function handleSubscription(
     currentBillingPeriod?: { endsAt?: string }
   },
   isCancel = false
-): Promise<void> {
+): Promise<NextResponse | null> {
   const customData = subscription.customData as { user_id?: string } | null
   const userId = customData?.user_id
-  if (!userId) return
+  if (!userId) return null
 
   let supabase: Awaited<ReturnType<typeof createServiceClient>>
   try {
     supabase = await createServiceClient()
   } catch (err) {
     console.error('[Paddle Webhook] DB error on subscription:', err)
-    return
+    return NextResponse.json({ error: 'Database connection failed' }, { status: 500 })
   }
 
   const isActive = !isCancel && (subscription.status === 'active' || subscription.status === 'trialing')
   const periodEnd = subscription.currentBillingPeriod?.endsAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
-  await supabase.from('profiles').upsert(
+  const { error: profileError } = await supabase.from('profiles').upsert(
     {
       id: userId,
       subscription_active: isActive,
@@ -117,7 +117,7 @@ async function handleSubscription(
     { onConflict: 'id' }
   )
 
-  await supabase.from('subscriptions').upsert(
+  const { error: subscriptionError } = await supabase.from('subscriptions').upsert(
     {
       user_id: userId,
       paddle_subscription_id: subscription.id,
@@ -127,6 +127,17 @@ async function handleSubscription(
     },
     { onConflict: 'paddle_subscription_id' }
   )
+
+  // A non-200 makes Paddle retry, so a failed save can't lose a paid subscription
+  if (profileError || subscriptionError) {
+    console.error(
+      '[Paddle Webhook] subscription save error:',
+      JSON.stringify(profileError ?? subscriptionError)
+    )
+    return NextResponse.json({ error: 'Failed to save subscription' }, { status: 500 })
+  }
+
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -182,7 +193,8 @@ export async function POST(req: NextRequest) {
     event.eventType === 'subscription.activated' ||
     event.eventType === 'subscription.updated'
   ) {
-    await handleSubscription(event.data, false)
+    const earlyResponse = await handleSubscription(event.data, false)
+    if (earlyResponse) return earlyResponse
   }
 
   if (
@@ -191,7 +203,8 @@ export async function POST(req: NextRequest) {
     event.eventType === 'subscription.canceled' ||
     event.eventType === 'subscription.past_due'
   ) {
-    await handleSubscription(event.data, true)
+    const earlyResponse = await handleSubscription(event.data, true)
+    if (earlyResponse) return earlyResponse
   }
 
   return NextResponse.json({ received: true })
