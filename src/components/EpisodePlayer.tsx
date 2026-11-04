@@ -11,6 +11,7 @@ import AIBadge from './AIBadge'
 import type { CoinPackage } from '@/types'
 import { usePaddle } from './PaddleProvider'
 import { createClient } from '@/lib/supabase/client'
+import { SUBSCRIPTION_PRICE_ID } from '@/lib/mock-data'
 
 interface EpisodePlayerProps {
   series: Series
@@ -229,37 +230,32 @@ export default function EpisodePlayer({ series, episodes, user, initialUnlockedI
       return
     }
     if (!paddle) return
+    if (!SUBSCRIPTION_PRICE_ID) {
+      console.error('[EpisodePlayer] subscription price is not configured')
+      return
+    }
     paddle.Checkout.open({
-      items: [
-        {
-          priceId:
-            process.env.NEXT_PUBLIC_PADDLE_PRICE_SUBSCRIPTION ||
-            process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_100 ||
-            '',
-          quantity: 1,
-        },
-      ],
+      items: [{ priceId: SUBSCRIPTION_PRICE_ID, quantity: 1 }],
       customData: { user_id: authUser.id },
     })
   }, [paddle, authUser, router, series.slug])
 
   const handleBuyCoins = useCallback(
     (pkg: CoinPackage) => {
-      const activePriceId =
-        pkg.paddle_price_id ||
-        process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_100 ||
-        'pri_01m10azbe4dt3qzh22p7aepjg4'
-
       if (!authUser) {
         router.push(`/login?returnTo=/watch/${series.slug}`)
         return
       }
 
       if (!paddle) return
+      if (!pkg.paddle_price_id) {
+        console.error('[EpisodePlayer] price is not configured for', pkg.id)
+        return
+      }
 
       paddle.Checkout.open({
-        items: [{ priceId: activePriceId, quantity: 1 }],
-        customData: { user_id: authUser.id, coins: String(pkg.coins) },
+        items: [{ priceId: pkg.paddle_price_id, quantity: 1 }],
+        customData: { user_id: authUser.id },
       })
     },
     [paddle, authUser, router, series.slug]

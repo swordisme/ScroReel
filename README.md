@@ -62,6 +62,7 @@ cp .env.example .env.local
    1. `supabase/schema.sql`: profiles, series, episodes, coins, unlocks
    2. `supabase/schema_v2.sql`: categories, subscriptions, analytics
    3. `supabase/schema_v3.sql`: atomic `unlock_episode` function (**required for coin unlocks**)
+   4. `supabase/schema_v4.sql`: exactly-once `credit_coins` function (**required for coin purchases**)
 3. Enable Email Auth under **Authentication → Providers**
 
 ### 4. Run locally
@@ -122,7 +123,8 @@ src/
 supabase/
 ├── schema.sql
 ├── schema_v2.sql
-└── schema_v3.sql
+├── schema_v3.sql
+└── schema_v4.sql
 ```
 
 ## License

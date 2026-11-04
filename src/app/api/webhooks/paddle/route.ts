@@ -24,30 +24,31 @@ async function creditCoins(transaction: {
   customData: unknown
   items?: { price?: { id?: string } }[]
 }): Promise<NextResponse | null> {
-  const customData = transaction.customData as { user_id?: string; coins?: number } | null
+  // The coin amount comes only from the price paid. customData is set by the
+  // browser, so it can say who bought but never how many coins they get.
+  const priceCoins: [string | undefined, number][] = [
+    [process.env.NEXT_PUBLIC_PADDLE_PRICE_50_COINS, 50],
+    [process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_100, 100],
+    [process.env.NEXT_PUBLIC_PADDLE_PRICE_150_COINS, 150],
+    [process.env.NEXT_PUBLIC_PADDLE_PRICE_500_COINS, 500],
+  ]
+
+  const priceId = transaction.items?.[0]?.price?.id ?? ''
+  const coinsToCredit = priceCoins.find(([id]) => id === priceId)?.[1] ?? 0
+  console.log('[Paddle Webhook] priceId:', priceId, 'coinsToCredit:', coinsToCredit)
+
+  if (coinsToCredit === 0) {
+    console.log('[Paddle Webhook] not a coin pack — checking next handlers')
+    return null
+  }
+
+  const customData = transaction.customData as { user_id?: string } | null
   const userId = customData?.user_id
   console.log('[Paddle Webhook] userId from customData:', userId)
 
   if (!userId) {
     console.error('[Paddle Webhook] ✖ missing user_id in custom_data')
     return NextResponse.json({ error: 'Missing user_id in custom_data' }, { status: 400 })
-  }
-
-  // Build price->coins map at request time
-  const priceCoins: Record<string, number> = {
-    [process.env.NEXT_PUBLIC_PADDLE_PRICE_50_COINS ?? 'PRICE_50']: 50,
-    [process.env.NEXT_PUBLIC_PADDLE_PRICE_100 ?? 'PRICE_100']: 100,
-    [process.env.NEXT_PUBLIC_PADDLE_PRICE_150_COINS ?? 'PRICE_150']: 150,
-    [process.env.NEXT_PUBLIC_PADDLE_PRICE_500_COINS ?? 'PRICE_500']: 500,
-  }
-
-  const priceId = transaction.items?.[0]?.price?.id ?? ''
-  const coinsToCredit = customData?.coins ?? priceCoins[priceId] ?? 0
-  console.log('[Paddle Webhook] priceId:', priceId, 'coinsToCredit:', coinsToCredit)
-
-  if (coinsToCredit === 0) {
-    console.log('[Paddle Webhook] unrecognised priceId / not a coin pack — checking next handlers')
-    return null
   }
 
   let supabase: Awaited<ReturnType<typeof createServiceClient>>
@@ -59,44 +60,22 @@ async function creditCoins(transaction: {
     return NextResponse.json({ error: 'Database connection failed' }, { status: 500 })
   }
 
-  const { data: currentProfile, error: profileError } = await supabase
-    .from('profiles')
-    .select('coin_balance')
-    .eq('id', userId)
-    .maybeSingle()
+  // One order sends several events and Paddle retries failures, so
+  // credit_coins does nothing for a transaction it has already paid out
+  const { data, error } = await supabase
+    .rpc('credit_coins', {
+      p_user_id: userId,
+      p_coins: coinsToCredit,
+      p_transaction_id: transaction.id,
+    })
+    .single<{ new_balance: number; already_credited: boolean }>()
 
-  if (profileError) {
-    console.error('[Paddle Webhook] profile fetch error:', JSON.stringify(profileError))
-    return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 })
-  }
-
-  const newBalance = (currentProfile?.coin_balance ?? 0) + coinsToCredit
-  console.log('[Paddle Webhook] coin_balance:', currentProfile?.coin_balance ?? 'NEW ROW', '->', newBalance)
-
-  const { error: upsertError } = await supabase
-    .from('profiles')
-    .upsert(
-      {
-        id: userId,
-        coin_balance: newBalance,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'id' }
-    )
-
-  if (upsertError) {
-    console.error('[Paddle Webhook] failed to upsert coin_balance:', JSON.stringify(upsertError))
+  if (error) {
+    console.error('[Paddle Webhook] credit_coins error:', JSON.stringify(error))
     return NextResponse.json({ error: 'Failed to credit coins' }, { status: 500 })
   }
 
-  await supabase.from('coin_transactions').insert({
-    user_id: userId,
-    amount: coinsToCredit,
-    type: 'purchase',
-    description: `Purchased ${coinsToCredit} coins via Paddle (tx: ${transaction.id})`,
-  })
-
-  console.log('[Paddle Webhook] successfully credited', coinsToCredit, 'coins to user', userId)
+  console.log('[Paddle Webhook] coins credited:', coinsToCredit, 'user:', userId, 'result:', data)
   return null
 }
 
